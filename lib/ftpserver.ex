@@ -42,17 +42,13 @@ defmodule Ftpserver do
   end
 
   defp handle_request(socket, "LIST") do
-
   end
 
   defp handle_request(socket, "RETRIEVE") do
-
   end
 
   defp handle_request(socket, "STORE") do
-
   end
-
 end
 
 Ftpserver.start_server()
