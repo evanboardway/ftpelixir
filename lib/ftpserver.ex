@@ -1,6 +1,6 @@
 defmodule Ftpserver do
   def start_server do
-    case :gen_tcp.listen(3000, [:binary, reuseaddr: true]) do
+    case :gen_tcp.listen(3001, [:binary, reuseaddr: true]) do
       {:ok, socket} ->
         for _unusedvar <- 0..10 do
           spawn(fn ->
@@ -18,7 +18,7 @@ defmodule Ftpserver do
   # This is the process that is spawned 10 times.
   defp server_handler(listen_socket) do
     {:ok, socket} = :gen_tcp.accept(listen_socket)
-    :ok = :gen_tcp.send(socket, "== CONNECTION ESTABLISHED")
+    :ok = :gen_tcp.send(socket, "== CONNECTION ESTABLISHED ==")
 
     receive do
       {:tcp, ^socket, "LIST"} ->

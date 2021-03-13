@@ -10,7 +10,7 @@ defmodule Ftpclient do
 
     case data do
       ["CONNECT", ip_address, port] ->
-        case :gen_tcp.connect(ip_address, port, [:binary, active: true]) do
+        case :gen_tcp.connect('localhost', port, [:binary, active: true]) do
           {:ok, socket} -> client_handler(socket)
           {:error, _} ->
             IO.puts "Error connecting to host"
