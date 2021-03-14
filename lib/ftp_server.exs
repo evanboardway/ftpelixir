@@ -32,7 +32,7 @@ defmodule FtpServer do
     {:ok, socket} = :gen_tcp.accept(listen_socket)
 
     case :gen_tcp.send(socket, "CONNECTION ESTABLISHED \n") do
-      :ok -> IO.puts "sent"
+      :ok -> nil
       {:error, err} ->
         IO.puts "Message not sent. Reason: #{err}"
     end
@@ -44,8 +44,10 @@ defmodule FtpServer do
   defp receive_stream(socket) do
     receive do
       {:tcp, ^socket, data} ->
+
+        args = String.split(data)|> IO.inspect()
+
         IO.puts("Client said, #{data}")
-        :gen_tcp.send(socket, "You said, #{data}")
         receive_stream(socket)
 
       {:tcp_closed, ^socket} ->
