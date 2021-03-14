@@ -27,7 +27,7 @@ defmodule FtpServer do
     end
   end
 
-  # This is the process that is spawned 10 times.
+  # Threadded process to handle incoming tcp connections.
   defp server_handler(listen_socket) do
     {:ok, socket} = :gen_tcp.accept(listen_socket)
 
@@ -38,22 +38,73 @@ defmodule FtpServer do
     end
 
     receive_stream(socket)
-
   end
 
+  # Function responsible for asynchronously receiving messages sent from client.
   defp receive_stream(socket) do
     receive do
       {:tcp, ^socket, data} ->
+        args = String.split(data)
+        case args do
+          ["LIST"|_] ->
+            cond do
+              length(args) > 1 -> :gen_tcp.send(socket, "Unexpected aruments")
+              length(args) == 1 -> :gen_tcp.send(socket, list_files())
+            end
 
-        args = String.split(data)|> IO.inspect()
+          ["RETREIVE"|filename] ->
+            cond do
+              length(args) == 1 -> :gen_tcp.send(socket, "Expected argument")
+              length(args) == 2 -> :gen_tcp.send(socket, retreive_file(filename))
+              length(args) > 2 -> :gen_tcp.send(socket, "Unexpected arguments")
+            end
 
-        IO.puts("Client said, #{data}")
+          ["STORE", address, port] ->
+            spawn(fn ->
+              store_file(address, port)
+            end)
+
+          ["QUIT"] ->
+            :gen_tcp.shutdown(socket, :read_write)
+
+          _ -> :gen_tcp.send(socket, "Unknown command")
+
+        end
+
         receive_stream(socket)
 
       {:tcp_closed, ^socket} ->
         IO.puts("CONNECTION CLOSED")
     end
   end
+
+  defp list_files do
+    # Collect files within ../files/ and join them with a new line.
+    Path.wildcard("../files/*")
+    |> Enum.map(&Path.basename/1)
+    |> Enum.join("\n")
+  end
+
+  defp retreive_file(filename) do
+    "file file file"
+  end
+
+  defp store_file(address, port) do
+    p = Integer.parse(port) |> elem(0)
+    case :gen_tcp.connect(String.to_charlist(address), p, [:binary, active: true]) do
+      {:ok, socket} ->
+        case :gen_tcp.send(socket, "CONNECTED") do
+          :ok -> nil
+          {:error, err} ->
+            IO.puts "Connection dropped. Reason: #{err}"
+        end
+        IO.puts("OK!")
+
+      {:error, err} ->
+        IO.puts("Error connecting to host. Reason: #{err}")
+    end
+  end
+
 end
 
 
