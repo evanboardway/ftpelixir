@@ -80,7 +80,7 @@ defmodule FtpServer do
 
   defp list_files do
     # Collect files within ../files/ and join them with a new line.
-    Path.wildcard("../files/*")
+    Path.wildcard("../server_files/*")
     |> Enum.map(&Path.basename/1)
     |> Enum.join("\n")
   end
@@ -89,16 +89,18 @@ defmodule FtpServer do
     "file file file"
   end
 
+  # NOT RECEIVING STORE COMMAND
   defp store_file(address, port) do
     p = Integer.parse(port) |> elem(0)
     case :gen_tcp.connect(String.to_charlist(address), p, [:binary, active: true]) do
       {:ok, socket} ->
         case :gen_tcp.send(socket, "CONNECTED") do
-          :ok -> nil
+          :ok ->
+            {:ok, packet} = :gen_tcp.recv(socket, 10000)
+            IO.inspect(packet)
           {:error, err} ->
-            IO.puts "Connection dropped. Reason: #{err}"
+            IO.puts "File transfer connection dropped. Reason: #{err}"
         end
-        IO.puts("OK!")
 
       {:error, err} ->
         IO.puts("Error connecting to host. Reason: #{err}")

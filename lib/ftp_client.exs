@@ -55,21 +55,27 @@ defmodule FtpClient do
     command_line_input =
       IO.gets("\n> ")
       |> String.trim()
-      |> String.upcase()
 
-    case String.upcase(command_line_input) |> String.split() do
-      ["STORE"|_] ->
-        # Generate a random port number
-        port = Enum.random(1024..65535)
-        # Set up a listener on the randomly generated port for file transfer.
-        case :gen_tcp.listen(port, [:binary, reuseaddr: true]) do
-          {:ok, transfer_socket} ->
-            # Tell the server the command, what IP address and port number the client is listening on
-            :gen_tcp.send(socket, "STORE localhost #{port}")
-            send_file(transfer_socket)
+    case String.split(command_line_input) do
+      ["STORE", filename] ->
+        # Check to see that the file exists before proceeding
 
-          {:error, err} ->
-            IO.puts(err)
+        if File.ls!("client_files")|> Enum.member?(filename) do
+          # Generate a random port number
+          port = Enum.random(1024..65535)
+          # Set up a listener on the randomly generated port for file transfer.
+          case :gen_tcp.listen(port, [:binary, reuseaddr: true]) do
+            {:ok, transfer_socket} ->
+              # Tell the server the command, what IP address and port number the client is listening on
+              :gen_tcp.send(socket, "STORE localhost #{port}")
+              send_file(transfer_socket, filename)
+
+            {:error, err} ->
+              IO.puts(err)
+
+            end
+        else
+          IO.puts "File not found."
         end
 
 
@@ -85,7 +91,7 @@ defmodule FtpClient do
     client_handler(socket)
   end
 
-  defp send_file(transfer_socket) do
+  defp send_file(transfer_socket, filename) do
     # Wait for server to try to connect to the new socket.
     {:ok, socket} = :gen_tcp.accept(transfer_socket)
 
@@ -96,27 +102,27 @@ defmodule FtpClient do
     end
 
     receive do
-      {:tcp, ^transfer_socket, data} ->
-        IO.inspect(data)
+      {:tcp, ^socket, data} ->
+        {:ok, contents} = File.read("./client_files/" <> filename)
+        :gen_tcp.send(socket, filename <> "\n" <> contents)
 
-      {:tcp_closed, ^transfer_socket} ->
+      {:tcp_closed, ^socket} ->
         IO.puts("CLOSING TRANSFER PORT")
       after
-        # receive is a halting function, so lets give it a timeout of 1 second.
-        1000 -> IO.puts "TIMEOUT"
+        1000 -> nil
     end
   end
 
-  defp get_current_ip_address do
-    :inet.getifaddrs()
-    |> elem(1)
-    |> Map.new()
-    |> Map.get('en1')
-    |> Keyword.get_values(:addr)
-    |> Enum.find(&match?({_, _, _, _}, &1))
-    |> Tuple.to_list()
-    |> Enum.join(".")
-  end
+  # defp get_current_ip_address do
+  #   :inet.getifaddrs()
+  #   |> elem(1)
+  #   |> Map.new()
+  #   |> Map.get('en1')
+  #   |> Keyword.get_values(:addr)
+  #   |> Enum.find(&match?({_, _, _, _}, &1))
+  #   |> Tuple.to_list()
+  #   |> Enum.join(".")
+  # end
 
 end
 
