@@ -95,12 +95,6 @@ defmodule FtpClient do
     # Wait for server to try to connect to the new socket.
     {:ok, socket} = :gen_tcp.accept(transfer_socket)
 
-    case :gen_tcp.send(socket, "CONNECTION ESTABLISHED \n") do
-      :ok -> nil
-      {:error, err} ->
-        IO.puts "Message not sent. Reason: #{err}"
-    end
-
     receive do
       {:tcp, ^socket, data} ->
         {:ok, contents} = File.read("./client_files/" <> filename)

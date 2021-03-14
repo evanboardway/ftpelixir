@@ -96,8 +96,26 @@ defmodule FtpServer do
       {:ok, socket} ->
         case :gen_tcp.send(socket, "CONNECTED") do
           :ok ->
-            {:ok, packet} = :gen_tcp.recv(socket, 10000)
-            IO.inspect(packet)
+            receive do
+              {:tcp, ^socket, data} ->
+
+                name =
+                  String.trim(data)
+                  |> String.split("\n")
+                  |> Enum.at(0)
+
+                content =
+                  String.trim(data)
+                  |> String.split("\n")
+                  |> Enum.at(1)
+
+                case File.open("../server_files/" <> name, [:write]) do
+                  {:ok, newfile} -> IO.binwrite(newfile, content)
+                  {:error, reason} -> :gen_tcp.send(socket, "Error creating file. Reason: #{reason}")
+                end
+                :gen_tcp.shutdown(socket, :read_write)
+
+            end
           {:error, err} ->
             IO.puts "File transfer connection dropped. Reason: #{err}"
         end
