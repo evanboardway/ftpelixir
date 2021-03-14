@@ -19,3 +19,8 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/ftpelixir](https://hexdocs.pm/ftpelixir).
 
+## Running
+
+Run each file on its respective machine using `elixir lib/<filename.exs>`
+
+Running a file within the `lib` folder will cause errors in file reading / writing.

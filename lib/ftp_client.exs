@@ -59,8 +59,7 @@ defmodule FtpClient do
     case String.split(command_line_input) do
       ["STORE", filename] ->
         # Check to see that the file exists before proceeding
-
-        if File.ls!("client_files")|> Enum.member?(filename) do
+        if File.ls!("./client_files/")|> Enum.member?(filename) do
           # Generate a random port number
           port = Enum.random(1024..65535)
           # Set up a listener on the randomly generated port for file transfer.
@@ -91,32 +90,24 @@ defmodule FtpClient do
     client_handler(socket)
   end
 
+  # Sends the file to the server over the new socket
   defp send_file(transfer_socket, filename) do
     # Wait for server to try to connect to the new socket.
     {:ok, socket} = :gen_tcp.accept(transfer_socket)
 
+    # Check for server response upon accepting connection.
     receive do
       {:tcp, ^socket, data} ->
+        # Read the contents of the file and send it over the transfer socket
         {:ok, contents} = File.read("./client_files/" <> filename)
         :gen_tcp.send(socket, filename <> "\n" <> contents)
 
-      {:tcp_closed, ^socket} ->
-        IO.puts("CLOSING TRANSFER PORT")
-      after
-        1000 -> nil
+      {:tcp_closed, ^socket} -> nil
+    after
+      1000 -> nil
     end
-  end
 
-  # defp get_current_ip_address do
-  #   :inet.getifaddrs()
-  #   |> elem(1)
-  #   |> Map.new()
-  #   |> Map.get('en1')
-  #   |> Keyword.get_values(:addr)
-  #   |> Enum.find(&match?({_, _, _, _}, &1))
-  #   |> Tuple.to_list()
-  #   |> Enum.join(".")
-  # end
+  end
 
 end
 

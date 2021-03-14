@@ -31,6 +31,7 @@ defmodule FtpServer do
   defp server_handler(listen_socket) do
     {:ok, socket} = :gen_tcp.accept(listen_socket)
 
+    # Lets the client know a connection was received.
     case :gen_tcp.send(socket, "CONNECTION ESTABLISHED \n") do
       :ok -> nil
       {:error, err} ->
@@ -45,6 +46,8 @@ defmodule FtpServer do
     receive do
       {:tcp, ^socket, data} ->
         args = String.split(data)
+
+        # Parse the incoming TCP stream to match on command keywords.
         case args do
           ["LIST"|_] ->
             cond do
@@ -59,10 +62,7 @@ defmodule FtpServer do
               length(args) > 2 -> :gen_tcp.send(socket, "Unexpected arguments")
             end
 
-          ["STORE", address, port] ->
-            spawn(fn ->
-              store_file(address, port)
-            end)
+          ["STORE", address, port] -> store_file(address, port)
 
           ["QUIT"] ->
             :gen_tcp.shutdown(socket, :read_write)
@@ -79,9 +79,8 @@ defmodule FtpServer do
   end
 
   defp list_files do
-    # Collect files within ../files/ and join them with a new line.
-    Path.wildcard("../server_files/*")
-    |> Enum.map(&Path.basename/1)
+    # Collect files within ./server_files/ and join them with a new line.
+    File.ls!(File.cwd! <> "/server_files/")
     |> Enum.join("\n")
   end
 
@@ -89,16 +88,19 @@ defmodule FtpServer do
     "file file file"
   end
 
-  # NOT RECEIVING STORE COMMAND
+  # Responsible for storing the incoming file in /server_files
   defp store_file(address, port) do
     p = Integer.parse(port) |> elem(0)
+    # Connect to socket over the port that the client specified
     case :gen_tcp.connect(String.to_charlist(address), p, [:binary, active: true]) do
       {:ok, socket} ->
+        # This message is not printed, it's simply sent to let the client know the connection is established.
         case :gen_tcp.send(socket, "CONNECTED") do
           :ok ->
             receive do
               {:tcp, ^socket, data} ->
 
+                # Parse the file name and content from the stream.
                 name =
                   String.trim(data)
                   |> String.split("\n")
@@ -109,7 +111,9 @@ defmodule FtpServer do
                   |> String.split("\n")
                   |> Enum.at(1)
 
-                case File.open("../server_files/" <> name, [:write]) do
+                # Open / create the file with given filename
+                case File.open("./server_files/" <> name, [:write]) do
+                  # Write contents to file
                   {:ok, newfile} -> IO.binwrite(newfile, content)
                   {:error, reason} -> :gen_tcp.send(socket, "Error creating file. Reason: #{reason}")
                 end
