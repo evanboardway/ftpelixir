@@ -94,20 +94,9 @@ defmodule FtpServer do
     IO.puts(File.ls!("./server_files/")) # testing to see what the computer sees...
     # Check to see that the file exists before proceeding
     if File.ls!("./server_files/") |> Enum.member?(filename) do
-      # Generate a random port number
-      port = Enum.random(1024..65535)
-      # Set up a listener on the randomly generated port for file transfer.
-      case :gen_tcp.listen(port, [:binary, reuseaddr: true]) do
-        {:ok, transfer_socket} ->
-          # Tell the server the command, what IP address and port number the client is listening on
-          :gen_tcp.send(socket, "Sending file #{filename}")
-          send_file(transfer_socket, filename)
-
-        {:error, err} ->
-          IO.puts(err)
-      end
+      File.read!(filename)
     else
-      :gen_tcp.send(socket, "Cannot send file #{filename}")
+      :gen_tcp.send(socket, "File #{filename} not found.")
       IO.puts("File #{filename} not found.")
     end
   end

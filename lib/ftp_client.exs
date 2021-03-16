@@ -84,11 +84,29 @@ defmodule FtpClient do
         case :gen_tcp.send(socket, "RETRIEVE #{filename}") do
           :ok ->
             receive do
-              {:tcp, address} ->
-                IO.puts(address)
+              {:tcp, ^socket, data} ->
+                # Parse the file name and content from the stream.
+                name =
+                  String.trim(data)
+                  |> String.split("\n")
+                  |> Enum.at(0)
 
-              _ ->
-                IO.puts("no idea")
+                content =
+                  String.trim(data)
+                  |> String.split("\n")
+                  |> Enum.at(1)
+
+                # Open / create the file with given filename
+                case File.open("./client_files/" <> name, [:write]) do
+                  # Write contents to file
+                  {:ok, newfile} ->
+                    IO.binwrite(newfile, content)
+                    :gen_tcp.send(socket, "Successfully stored file #{name}\n")
+
+                  {:error, reason} ->
+                    :gen_tcp.send(socket, "Error creating file. Reason: #{reason}")
+                    IO.puts("error")
+                end
             end
 
           {:error, err} ->
