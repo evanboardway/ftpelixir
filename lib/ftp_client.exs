@@ -61,6 +61,7 @@ defmodule FtpClient do
 
     case String.split(command_line_input) do
       ["STORE", filename] ->
+        IO.puts(File.ls!("./client_files/"))
         # Check to see that the file exists before proceeding
         if File.ls!("./client_files/") |> Enum.member?(filename) do
           # Generate a random port number
@@ -77,6 +78,21 @@ defmodule FtpClient do
           end
         else
           IO.puts("File #{filename} not found.")
+        end
+
+      ["RETRIEVE", filename] ->
+        case :gen_tcp.send(socket, "RETRIEVE #{filename}") do
+          :ok ->
+            receive do
+              {:tcp, address} ->
+                IO.puts(address)
+
+              _ ->
+                IO.puts("no idea")
+            end
+
+          {:error, err} ->
+            IO.puts("Couldn't send command RETRIEVE")
         end
 
       # Send command line input to the stream
@@ -122,6 +138,53 @@ defmodule FtpClient do
 
       {:error, err} ->
         IO.puts("Error for :gen_tcp.accept() while sending file: \n#{err}")
+    end
+  end
+
+  # Responsible for storing the incoming file in /client_files
+  defp store_file(address, port) do
+    p = Integer.parse(port) |> elem(0)
+    # Connect to socket over the port that the client specified
+    case :gen_tcp.connect(String.to_charlist(address), p, [:binary, active: true]) do
+      {:ok, socket} ->
+        # This message is not printed, it's simply sent to let the client know the connection is established.
+        case :gen_tcp.send(socket, "CONNECTED") do
+          :ok ->
+            receive do
+              {:tcp, ^socket, data} ->
+                # Parse the file name and content from the stream.
+                name =
+                  String.trim(data)
+                  |> String.split("\n")
+                  |> Enum.at(0)
+
+                content =
+                  String.trim(data)
+                  |> String.split("\n")
+                  |> Enum.at(1)
+
+                # Open / create the file with given filename
+                case File.open("./client_files/" <> name, [:write]) do
+                  # Write contents to file
+                  {:ok, newfile} ->
+                    IO.binwrite(newfile, content)
+                    :gen_tcp.send(socket, "Successfully stored file #{name}\n")
+
+                  {:error, reason} ->
+                    :gen_tcp.send(socket, "Error creating file. Reason: #{reason}")
+                    IO.puts("error")
+                end
+
+                IO.puts("Shutting down {store_file} socket at port #{port}")
+                :gen_tcp.shutdown(socket, :read_write)
+            end
+
+          {:error, err} ->
+            IO.puts("File transfer connection dropped. Reason: #{err}")
+        end
+
+      {:error, err} ->
+        IO.puts("Error connecting to host. Reason: #{err}")
     end
   end
 end
