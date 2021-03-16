@@ -92,10 +92,10 @@ defmodule FtpClient do
               # If the string is "File not found."
               # Then stop listening on the port, print the message "File not found."
               {:tcp, ^socket, data} ->
-                 case String.contains?(data, "File not found") do
+                case String.contains?(data, "ERROR") do
                   true -> IO.puts data
                   false -> retrieve_file(transfer_socket, filename)
-                  end
+                end
             end
 
           {:error, err} ->
@@ -127,6 +127,7 @@ defmodule FtpClient do
               # Write contents to file
               {:ok, newfile} ->
                 IO.binwrite(newfile, data)
+                IO.puts("#{filename} successfully retrieved.")
 
               {:error, reason} ->
                 IO.puts("Error creating file. Reason: #{reason}")
@@ -153,10 +154,13 @@ defmodule FtpClient do
       {:ok, socket} ->
         # Check for server response upon accepting connection.
         receive do
-          {:tcp, ^socket, data} ->
+          {:tcp, ^socket, _} ->
             # Read the contents of the file and send it over the transfer socket
             {:ok, contents} = File.read("./client_files/" <> filename)
             :gen_tcp.send(socket, filename <> "\n" <> contents)
+            receive do
+              {:tcp, ^socket, response} -> IO.puts response
+            end
 
           {:tcp_closed, ^socket} ->
             nil

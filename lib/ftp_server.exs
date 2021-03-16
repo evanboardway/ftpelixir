@@ -46,25 +46,25 @@ defmodule FtpServer do
   defp receive_stream(socket) do
     receive do
       {:tcp, ^socket, data} ->
-        args = String.split(data)
+        args =
+          String.split(data)
+          # Enum.at()
 
         # Parse the incoming TCP stream to match on command keywords.
         case args do
-          ["LIST" | _] ->
+          ["LIST" |_] ->
             cond do
               length(args) > 1 -> :gen_tcp.send(socket, "Unexpected arguments")
               length(args) == 1 -> :gen_tcp.send(socket, list_files())
             end
 
           ["RETRIEVE", address, port, filename] ->
-            IO.inspect(args)
             # see if file exists -- if not send error message
             if File.ls!("./server_files/") |> Enum.member?(filename) do
               :gen_tcp.send(socket, "Transferring")
               retrieve_file(address, port, filename)
             else
-              IO.puts("FILE NOT FOUND")
-              :gen_tcp.send(socket, "File not found.")
+              :gen_tcp.send(socket, "ERROR: File #{filename} not found.")
             end
 
           ["STORE", address, port] ->
@@ -99,10 +99,10 @@ defmodule FtpServer do
         {:ok, contents} = File.read("./server_files/" <> filename)
         :gen_tcp.send(socket, contents)
 
-      {:error, err} ->
+      {:error, _} ->
         IO.puts("DID NOT CONNECT")
 
-      _ ->
+      _ -> nil
     end
   end
 
@@ -133,6 +133,7 @@ defmodule FtpServer do
                   # Write contents to file
                   {:ok, newfile} ->
                     IO.binwrite(newfile, content)
+                    :gen_tcp.send(socket, "Successfully stored #{name}.")
 
                   {:error, reason} ->
                     :gen_tcp.send(socket, "Error creating file. Reason: #{reason}")

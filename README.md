@@ -1,6 +1,6 @@
 # Ftpelixir
 
-**TODO: Add description**
+A simple FTP server and client written in Elixir.
 
 ## Installation
 
@@ -19,8 +19,13 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/ftpelixir](https://hexdocs.pm/ftpelixir).
 
-## Running
+## How to run
 
 Run each file on its respective machine using `elixir lib/<filename.exs>`
 
 Running a file within the `lib` folder will cause errors in file reading / writing.
+
+## File storage
+
+Files for the client should be stored in /client_files
+Files for the server should be stored in /server_files
