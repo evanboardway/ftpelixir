@@ -63,7 +63,7 @@ defmodule FtpServer do
           ["RETRIEVE" | filename] ->
             cond do
               length(args) == 1 -> :gen_tcp.send(socket, "Expected argument")
-              length(args) == 2 -> :gen_tcp.send(socket, retrieve_file(filename, socket))
+              length(args) == 2 -> :gen_tcp.send(socket, retrieve_file(Enum.join(filename, ""), socket))
               length(args) > 2 -> :gen_tcp.send(socket, "Unexpected arguments")
             end
 
@@ -91,13 +91,25 @@ defmodule FtpServer do
   end
 
   defp retrieve_file(filename, socket) do
-    IO.puts(File.ls!("./server_files/")) # testing to see what the computer sees...
+
     # Check to see that the file exists before proceeding
+    # TODO: always resolves as false
     if File.ls!("./server_files/") |> Enum.member?(filename) do
-      File.read!(filename)
+      # if filename do
+      # Generate a random port number
+      port = Enum.random(1024..65535)
+      # Set up a listener on the randomly generated port for file transfer.
+      case :gen_tcp.listen(port, [:binary, reuseaddr: true]) do
+        {:ok, transfer_socket} ->
+          # Tell the server the command, what IP address and port number the client is listening on
+          :gen_tcp.send(socket, "localhost #{port}")
+          send_file(transfer_socket, filename)
+
+        {:error, err} ->
+          err
+      end
     else
-      :gen_tcp.send(socket, "File #{filename} not found.")
-      IO.puts("File #{filename} not found.")
+      "NF"
     end
   end
 
@@ -152,24 +164,28 @@ defmodule FtpServer do
   defp send_file(transfer_socket, filename) do
     # Wait for server to try to connect to the new socket.
     case :gen_tcp.accept(transfer_socket) do
-      {:ok, socket} ->
+      {:ok, tsocket} ->
         # Check for server response upon accepting connection.
         receive do
-          {:tcp, ^socket, data} ->
+          {:tcp, ^tsocket, data} ->
             # Read the contents of the file and send it over the transfer socket
-            {:ok, contents} = File.read("./client_files/" <> filename)
+            file =
+              File.read("./server_files/" <> filename)
+              |> IO.inspect()
 
-            :gen_tcp.send(socket, filename <> "\n" <> contents)
-
-            receive do
-              {:tcp, socket, data} ->
-                IO.write(data)
-            after
-              1000 -> nil
+            case File.read("./server_files/" <> filename) do
+              {:ok, contents} ->
+                :gen_tcp.send(tsocket, filename <> "\n" <> contents)
+                :gen_tcp.shutdown(tsocket, :read_write)
+              {:error, err} -> IO.puts(err)
             end
 
-          {:tcp_closed, ^socket} ->
+
+          {:tcp_closed, ^tsocket} ->
             nil
+
+          {:error, err} ->
+            IO.puts(err)
         after
           1000 -> nil
         end
