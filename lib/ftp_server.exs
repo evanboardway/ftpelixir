@@ -1,7 +1,6 @@
 defmodule FtpServer do
-
   def start_server do
-    IO.puts "What port should I listen on: "
+    IO.puts("What port should I listen on: ")
 
     port =
       IO.gets("\n> ")
@@ -9,7 +8,7 @@ defmodule FtpServer do
       |> Integer.parse()
       |> elem(0)
 
-    IO.puts "Listening on port #{port}\n"
+    IO.puts("Listening on port #{port}\n")
 
     case :gen_tcp.listen(port, [:binary, reuseaddr: true]) do
       {:ok, socket} ->
@@ -33,9 +32,11 @@ defmodule FtpServer do
 
     # Lets the client know a connection was received.
     case :gen_tcp.send(socket, "CONNECTION ESTABLISHED \n") do
-      :ok -> nil
+      :ok ->
+        nil
+
       {:error, err} ->
-        IO.puts "Message not sent. Reason: #{err}"
+        IO.puts("Message not sent. Reason: #{err}")
     end
 
     receive_stream(socket)
@@ -49,26 +50,31 @@ defmodule FtpServer do
 
         # Parse the incoming TCP stream to match on command keywords.
         case args do
-          ["LIST"|_] ->
+          ["LIST" | _] ->
             cond do
-              length(args) > 1 -> :gen_tcp.send(socket, "Unexpected aruments")
+              length(args) > 1 -> :gen_tcp.send(socket, "Unexpected arguments")
               length(args) == 1 -> :gen_tcp.send(socket, list_files())
             end
 
-          ["retrieve"|filename] ->
-            cond do
-              length(args) == 1 -> :gen_tcp.send(socket, "Expected argument")
-              length(args) == 2 -> :gen_tcp.send(socket, retrieve_file(filename))
-              length(args) > 2 -> :gen_tcp.send(socket, "Unexpected arguments")
+          ["RETRIEVE", address, port, filename] ->
+            IO.inspect(args)
+            # see if file exists -- if not send error message
+            if File.ls!("./server_files/") |> Enum.member?(filename) do
+              :gen_tcp.send(socket, "Transferring")
+              retrieve_file(address, port, filename)
+            else
+              IO.puts("FILE NOT FOUND")
+              :gen_tcp.send(socket, "File not found.")
             end
 
-          ["STORE", address, port] -> store_file(address, port)
+          ["STORE", address, port] ->
+            store_file(address, port)
 
           ["QUIT"] ->
             :gen_tcp.shutdown(socket, :read_write)
 
-          _ -> :gen_tcp.send(socket, "Unknown command")
-
+          _ ->
+            :gen_tcp.send(socket, "Unknown command")
         end
 
         receive_stream(socket)
@@ -80,12 +86,24 @@ defmodule FtpServer do
 
   defp list_files do
     # Collect files within ./server_files/ and join them with a new line.
-    File.ls!(File.cwd! <> "/server_files/")
+    File.ls!(File.cwd!() <> "/server_files/")
     |> Enum.join("\n")
   end
 
-  defp retrieve_file(filename) do
-    "file file file"
+  defp retrieve_file(address, port, filename) do
+    p = Integer.parse(port) |> elem(0)
+
+    # if the file exists, connect to the new port
+    case :gen_tcp.connect(String.to_charlist(address), p, [:binary, active: true]) do
+      {:ok, socket} ->
+        {:ok, contents} = File.read("./server_files/" <> filename)
+        :gen_tcp.send(socket, contents)
+
+      {:error, err} ->
+        IO.puts("DID NOT CONNECT")
+
+      _ ->
+    end
   end
 
   # Responsible for storing the incoming file in /server_files
@@ -99,7 +117,6 @@ defmodule FtpServer do
           :ok ->
             receive do
               {:tcp, ^socket, data} ->
-
                 # Parse the file name and content from the stream.
                 name =
                   String.trim(data)
@@ -114,22 +131,24 @@ defmodule FtpServer do
                 # Open / create the file with given filename
                 case File.open("./server_files/" <> name, [:write]) do
                   # Write contents to file
-                  {:ok, newfile} -> IO.binwrite(newfile, content)
-                  {:error, reason} -> :gen_tcp.send(socket, "Error creating file. Reason: #{reason}")
-                end
-                :gen_tcp.shutdown(socket, :read_write)
+                  {:ok, newfile} ->
+                    IO.binwrite(newfile, content)
 
+                  {:error, reason} ->
+                    :gen_tcp.send(socket, "Error creating file. Reason: #{reason}")
+                end
+
+                :gen_tcp.shutdown(socket, :read_write)
             end
+
           {:error, err} ->
-            IO.puts "File transfer connection dropped. Reason: #{err}"
+            IO.puts("File transfer connection dropped. Reason: #{err}")
         end
 
       {:error, err} ->
         IO.puts("Error connecting to host. Reason: #{err}")
     end
   end
-
 end
-
 
 FtpServer.start_server()

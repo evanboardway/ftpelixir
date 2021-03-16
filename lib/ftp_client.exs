@@ -61,7 +61,6 @@ defmodule FtpClient do
 
     case String.split(command_line_input) do
       ["STORE", filename] ->
-        IO.puts(File.ls!("./client_files/"))
         # Check to see that the file exists before proceeding
         if File.ls!("./client_files/") |> Enum.member?(filename) do
           # Generate a random port number
@@ -81,10 +80,26 @@ defmodule FtpClient do
         end
 
       ["RETRIEVE", filename] ->
-          :ok ->
-            "retrieve"
+        port = Enum.random(1024..65535)
+
+        case :gen_tcp.listen(port, [:binary, reuseaddr: true]) do
+          {:ok, transfer_socket} ->
+            # Tell the server the command, what IP address and port number the client is listening on
+            :gen_tcp.send(socket, "RETRIEVE localhost #{port} #{filename}")
+
+            # Wait for data for one second
+            receive do
+              # If the string is "File not found."
+              # Then stop listening on the port, print the message "File not found."
+              {:tcp, ^socket, data} ->
+                 case String.contains?(data, "File not found") do
+                  true -> IO.puts data
+                  false -> retrieve_file(transfer_socket, filename)
+                  end
+            end
+
           {:error, err} ->
-            IO.puts("Couldn't send command RETRIEVE")
+            IO.puts(err)
         end
 
       # Send command line input to the stream
@@ -102,6 +117,35 @@ defmodule FtpClient do
     client_handler(socket)
   end
 
+  defp retrieve_file(transfer_socket, filename) do
+    case :gen_tcp.accept(transfer_socket) do
+      {:ok, socket} ->
+        receive do
+          {:tcp, ^socket, data} ->
+            # Open / create the file with given filename
+            case File.open("./client_files/" <> filename, [:write]) do
+              # Write contents to file
+              {:ok, newfile} ->
+                IO.binwrite(newfile, data)
+
+              {:error, reason} ->
+                IO.puts("Error creating file. Reason: #{reason}")
+            end
+        after
+          10000 ->
+            IO.puts("FILE TRANSFER CONNECTION TIMEOUT")
+            :gen_tcp.shutdown(transfer_socket, :read_write)
+        end
+
+      {:error, err} ->
+        IO.puts(
+          "Error for :gen_tcp.accept() while connecting to new port during file reception attempt: \n#{
+            err
+          }"
+        )
+    end
+  end
+
   # Sends the file to the server over the new socket
   defp send_file(transfer_socket, filename) do
     # Wait for server to try to connect to the new socket.
@@ -112,15 +156,7 @@ defmodule FtpClient do
           {:tcp, ^socket, data} ->
             # Read the contents of the file and send it over the transfer socket
             {:ok, contents} = File.read("./client_files/" <> filename)
-
             :gen_tcp.send(socket, filename <> "\n" <> contents)
-
-            receive do
-              {:tcp, socket, data} ->
-                IO.write(data)
-            after
-              1000 -> nil
-            end
 
           {:tcp_closed, ^socket} ->
             nil
